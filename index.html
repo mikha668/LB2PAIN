@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>LB → pain.001 Converter</title>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    font-family:Segoe UI,Arial,sans-serif;
+    background:#f5f7fa;
+    color:#333;
+}
+
+.container{
+    max-width:900px;
+    margin:50px auto;
+    padding:30px;
+}
+
+.card{
+    background:white;
+    padding:30px;
+    border-radius:12px;
+    box-shadow:0 5px 20px rgba(0,0,0,.1);
+}
+
+h1{
+    margin-bottom:10px;
+}
+
+.subtitle{
+    margin-bottom:30px;
+    color:#666;
+}
+
+label{
+    display:block;
+    font-weight:600;
+    margin-top:20px;
+    margin-bottom:8px;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    border:1px solid #ccc;
+    border-radius:6px;
+}
+
+button{
+    margin-top:30px;
+    padding:14px 30px;
+    border:none;
+    border-radius:6px;
+    background:#0066cc;
+    color:white;
+    cursor:pointer;
+    font-size:16px;
+}
+
+button:hover{
+    background:#0052a3;
+}
+
+textarea{
+    width:100%;
+    height:300px;
+    margin-top:20px;
+    border:1px solid #ccc;
+    border-radius:6px;
+    padding:15px;
+    font-family:Consolas,monospace;
+}
+
+.status{
+    margin-top:20px;
+    font-weight:bold;
+}
+
+.success{
+    color:green;
+}
+
+.error{
+    color:red;
+}
+
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <div class="card">
+
+        <h1>LB → pain.001 </h1>
+
+        <p class="subtitle">
+            Ladda upp en LB-fil och generera en ISO20022 pain.001 XML enligt LF Bank MIG version 0
+            <br>Inga kredditnotor och kontantutbetalningar är tillåtet.
+            <br>Löner skickas i en egen fil, blanda ej med andra betalningar.
+        </p>
+
+        <label>LB Fil</label>
+        <input type="file" id="fileInput">
+
+        <label>Company Name</label>
+        <input
+            type="text"
+            id="companyName"
+            value="Converted LB">
+
+        <label>Organisationsnummer på betalare</label>
+        <input
+            type="text"
+            id="orgNo"
+            value="556677-1234">
+
+        <button id="convertBtn">
+            Konvertera till pain.001
+        </button>
+
+        <div id="status" class="status"></div>
+
+        
+        <textarea
+            id="LBOut"
+            placeholder="LB file content..."
+        ></textarea>
+
+        <textarea
+            id="xmlPreview"
+            placeholder="XML preview..."
+        ></textarea>
+
+    </div>
+
+</div>
+
+<script>
+
+document
+.getElementById("convertBtn")
+.addEventListener("click", convertFile);
+
+
+function convertFile() {
+
+    const file =
+        document.getElementById("fileInput").files[0];
+
+    if(!file){
+        showStatus(
+            "Vänligen ladda upp en fil att konvertera",
+            true
+        );
+        return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = function(e){
+
+        const lbContent = e.target.result;
+
+        document
+            .getElementById("LBOut")
+            .value = lbContent;
+
+        const companyName =
+            document.getElementById("companyName").value;
+
+        const orgNo =
+            document.getElementById("orgNo").value
+                .trim()
+                .replace(/-/g, "");
+
+        const payments =
+            parseLB(lbContent);
+
+        const xml =
+            createPain001(
+                payments,
+                companyName,
+                orgNo,
+            );
+
+        document
+            .getElementById("xmlPreview")
+            .value = xml;
+
+        const inputFileName =
+            file.name.replace(/\.[^.]+$/, "");
+
+        downloadXML(
+            xml,
+            inputFileName + formatShortDate(new Date()) + ".xml"
+        );
+
+        showStatus(
+            `${payments.length} payment(s) converted`,
+            false
+        );
+    };
+
+    reader.readAsText(file);
+}
+
+
+function parseLB(content){
+
+    const lines = content.split(/\r?\n/);
+
+    const result = {
+
+        header: {},
+
+        payments: [],
+
+        record40: null
+
+    };
+
+    lines.forEach(line => {
+
+        if(line.length < 2){
+            return;
+        }
+
+        const recordType = line.substring(0,2);
+
+        //
+        // POST 11
+        //
+        if(recordType === "11"){
+
+            result.header.bgNo =
+                line.substring(2,12).trim();
+
+            result.header.createDate =
+                line.substring(12,18).trim();
+
+            result.header.payDate =
+                line.substring(40,46).trim();
+
+            return;
+        }
+
+        if(recordType === "40"){
+
+            result.record40 = {
+                utbetNo: line.substring(6,12).trim(),
+                clnr: line.substring(12,16).trim(),
+                accountNo: line.substring(16,28).trim().replace(/^0+/, ""),
+                reference: line.substring(28,40).trim(),
+                salary: line.substring(40).trim()
+            };
+
+            return;
+        }
+
+        //
+        // POST 14/54 contain supplier payments.
+        //
+        if(recordType === "14" || recordType === "54"){
+
+            const bgOrBet = line.substring(2,12).trim();
+            const ocrOrRef = line.substring(12,37).trim();
+            const amount = line.substring(37,49).trim();
+            const betDate = line.substring(49,55).trim();
+
+            if(!result.header.payDate && recordType === "14"){
+                result.header.payDate = betDate;
+            }
+
+            const record40 = result.record40 &&
+                result.record40.utbetNo === bgOrBet
+                ? result.record40
+                : null;
+
+            result.payments.push({
+
+                bgOrBet,
+
+                ocrOrRef,
+
+                amount: Number(amount) / 100,
+
+                betDate,
+
+                name: "",
+
+                account: record40
+                    ? record40.clnr + record40.accountNo
+                    : bgOrBet,
+
+                reference: record40 ? record40.reference : ocrOrRef,
+
+                clnr: record40 ? record40.clnr : "",
+
+                salary: record40 ? record40.salary : ""
+
+            });
+
+            result.record40 = null;
+
+            return;
+        }
+
+    });
+
+    console.log(result);
+
+    return result;
+}
+
+
+function createPain001(
+    lbData,
+    companyName,
+    OrgNo
+){
+
+    const payments = lbData.payments;
+
+    const hasSalaryPayment =
+        payments.some(payment => payment.salary === "L");
+
+    const messageId =
+        "MSG-" + formatMessageDate(new Date());
+
+    let pmtInfIndex = 1;
+
+    const creationDate =
+        formatLBDate(lbData.header.createDate) + "T00:00:00";
+
+    const debtBG =
+        lbData.header.bgNo.replace(/^0{2,3}/, "");
+
+    const executionDate = lbData.header.payDate;
+
+    let totalAmount = 0;
+
+    payments.forEach(p => {
+        totalAmount += p.amount;
+    });
+
+    let xml = '';
+
+    xml += '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += `<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03">
+    <CstmrCdtTrfInitn>
+        <GrpHdr>
+            <MsgId>${messageId}</MsgId>
+            <CreDtTm>${creationDate}</CreDtTm>
+            <NbOfTxs>${payments.length}</NbOfTxs>
+            <CtrlSum>${totalAmount.toFixed(2)}</CtrlSum>
+            <InitgPty>
+                    <Nm>${escapeXml(companyName)}</Nm>
+                    <Id>
+                        <OrgId>
+                            <Othr>
+                                <Id>${escapeXml(OrgNo)}</Id>
+                            </Othr>
+                        </OrgId>
+            </InitgPty>
+        </GrpHdr>
+        <PmtInf>
+            <PmtInfId>${messageId}-${pmtInfIndex++}</PmtInfId>
+            <PmtMtd>TRF</PmtMtd>
+            ${hasSalaryPayment ? `
+            <PmtTpInf>
+                <CtgyPurp>
+                    <Cd>SALA</Cd>
+                </CtgyPurp>
+            </PmtTpInf>` : ""}
+            <ReqExctnDt>${formatLBDate(executionDate)}</ReqExctnDt>
+            <Dbtr>
+                <Nm>${escapeXml(companyName)}</Nm>
+            </Dbtr>
+            <DbtrAcct>
+                <Id>
+                    <Other>
+                        <Id>${escapeXml(debtBG)}</Id>
+                        <SchemeNm>
+                            <Prtry>BGNR</Prtry>
+                        </SchemeNm>
+                    </Other>
+                </Id>
+            </DbtrAcct>
+            <DbtrAgt>
+                <FinInstnId>
+                    <BIC>ELLFSESS</BIC>
+                </FinInstnId>
+            </DbtrAgt>
+    `;
+        payments.forEach((payment,index)=>{
+
+            xml += `
+            <CdtTrfTxInf>
+                <PmtId>
+                    <EndToEndId>E2E-${index+1}</EndToEndId>
+                </PmtId>
+                <Amt>
+                    <InstdAmt Ccy="SEK">${payment.amount.toFixed(2)}</InstdAmt>
+                </Amt>
+                <Cdtr>
+                    <Nm>${escapeXml(payment.name || "Not Provided")}</Nm>
+                </Cdtr>
+                <CdtrAcct>
+                    <Id>
+                        <Othr>
+                            <Id>${escapeXml(payment.account)}</Id>
+                            <SchemeNm>
+                                <Prtry>BBAN</Prtry>
+                            </SchemeNm>
+                        </Othr>
+                    </Id>
+                </CdtrAcct>
+                <RmtInf>
+                    <Ustrd>${escapeXml(payment.reference)}</Ustrd>
+                </RmtInf>
+            </CdtTrfTxInf>`;
+        });
+
+        xml += `
+        </PmtInf>
+    </CstmrCdtTrfInitn>
+</Document>
+`;
+
+    return xml.replace(/\n\s*\n/g, "\n");
+}
+
+
+function formatLBDate(value){
+
+    const date = value.trim();
+
+    return "20" + date.substring(0,2) + "-" +
+        date.substring(2,4) + "-" +
+        date.substring(4,6);
+}
+
+
+function formatMessageDate(date){
+
+    const twoDigits = value => String(value).padStart(2,"0");
+
+    return String(date.getFullYear()).substring(2,4) +
+        twoDigits(date.getMonth() + 1) +
+        twoDigits(date.getDate()) +
+        twoDigits(date.getHours()) +
+        twoDigits(date.getMinutes());
+}
+
+
+function formatShortDate(date){
+
+    const twoDigits = value => String(value).padStart(2,"0");
+
+    return String(date.getFullYear()).substring(2,4) +
+        twoDigits(date.getMonth() + 1) +
+        twoDigits(date.getDate());
+}
+
+
+function downloadXML(xml, fileName){
+
+    const blob =
+        new Blob(
+            [xml],
+            {type:"application/xml"}
+        );
+
+    const link =
+        document.createElement("a");
+
+    link.href =
+        URL.createObjectURL(blob);
+
+    link.download = fileName;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+}
+
+
+function showStatus(text,error){
+
+    const status =
+        document.getElementById("status");
+
+    status.textContent = text;
+
+    if(error){
+        status.className = "status error";
+    }
+    else{
+        status.className = "status success";
+    }
+}
+
+
+function escapeXml(value){
+
+    return value
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&apos;");
+}
+
+</script>
+
+</body>
+</html>
