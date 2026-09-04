@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>LB → pain.001 V0.92</title>
+<title>LB → pain.001 V0.93</title>
 
 <style>
 
@@ -473,21 +473,6 @@ function createPain001(
                 <Amt>
                     <InstdAmt Ccy="SEK">${payment.amount.toFixed(2)}</InstdAmt>
                 </Amt>
-                <Cdtr>
-                    <Nm>${escapeXml(payment.name || "Not Provided")}</Nm>
-                </Cdtr>
-                <CdtrAcct>
-                    <Id>
-                        <Othr>
-                            <Id>${escapeXml(payment.account)}</Id>
-                            <SchemeNm>
-                                ${payment.isBgNumber
-                            ? `<Prtry>BGNR</Prtry>`
-                            : `<Cd>BBAN</Cd>`}
-                            </SchemeNm>
-                        </Othr>
-                    </Id>
-                </CdtrAcct>
                 ${payment.isBgNumber ? `
                 <CdtrAgt>
                     <FinInstnId>
@@ -499,6 +484,21 @@ function createPain001(
                         </ClrSysMmbId>
                     </FinInstnId>
                 </CdtrAgt>` : ""}
+                <Cdtr>
+                    <Nm>${escapeXml(payment.name || "Not Provided")}</Nm>
+                </Cdtr>
+                <CdtrAcct>
+                    <Id>
+                        <Othr>
+                            <Id>${escapeXml(payment.account)}</Id>
+                            <SchmeNm>
+                                ${payment.isBgNumber
+                            ? `<Prtry>BGNR</Prtry>`
+                            : `<Cd>BBAN</Cd>`}
+                            </SchmeNm>
+                        </Othr>
+                    </Id>
+                </CdtrAcct>
                 <RmtInf>
                     <Ustrd>${escapeXml(payment.reference)}</Ustrd>
                 </RmtInf>
