@@ -286,10 +286,6 @@ function parseLB(content){
             const ocrOrRef = line.substring(12,37).trim();
             const amount = line.substring(37,49).trim();
             const betDate = line.substring(49,55).trim();
-// change logic for date
-            if(!result.header.payDate && recordType === "14"){
-                result.header.payDate = betDate;
-            }
 
             const record40 = recordType === "14"
                 ? result.record40
@@ -310,6 +306,8 @@ function parseLB(content){
                 account: record40
                     ? record40.clnr + record40.accountNo
                     : bgOrBet,
+
+                isBgNumber: !record40,
 
                 reference: record40 && record40.reference
                     ? record40.reference
@@ -344,21 +342,14 @@ function createPain001(
 
     const payments = lbData.payments;
 
-    const hasSalaryPayment =
-        payments.some(payment => payment.salary === "L");
-
     const messageId =
         "MSG-" + formatMessageDate(new Date());
-
-    let pmtInfIndex = 1;
 
     const creationDate =
         formatLBDate(lbData.header.createDate) + "T00:00:00";
 
     const debtBG =
         lbData.header.bgNo.replace(/^0{2,3}/, "");
-
-    const executionDate = lbData.header.payDate;
 
     let totalAmount = 0;
 
@@ -367,6 +358,37 @@ function createPain001(
     });
 
     let xml = '';
+
+    const headerPayDate = lbData.header.payDate &&
+        !/^0+$/.test(lbData.header.payDate)
+        ? lbData.header.payDate
+        : "";
+
+    const paymentGroups = [];
+
+    payments.forEach(payment => {
+
+        const executionDate = headerPayDate || payment.betDate;
+        const isSalary = payment.salary === "L";
+
+        let group = paymentGroups.find(item =>
+            item.executionDate === executionDate &&
+            item.isSalary === isSalary
+        );
+
+        if(!group){
+            group = {
+                executionDate,
+                isSalary,
+                payments: []
+            };
+            paymentGroups.push(group);
+        }
+
+        group.payments.push(payment);
+    });
+
+    let transactionIndex = 1;
 
     xml += '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += `<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03">
@@ -387,16 +409,20 @@ function createPain001(
                     </Id>
             </InitgPty>
         </GrpHdr>
+`;
+    paymentGroups.forEach((group, groupIndex) => {
+
+        xml += `
         <PmtInf>
-            <PmtInfId>${messageId}-${pmtInfIndex++}</PmtInfId>
+            <PmtInfId>${messageId}-${groupIndex + 1}</PmtInfId>
             <PmtMtd>TRF</PmtMtd>
-            ${hasSalaryPayment ? `
+            ${group.isSalary ? `
             <PmtTpInf>
                 <CtgyPurp>
                     <Cd>SALA</Cd>
                 </CtgyPurp>
             </PmtTpInf>` : ""}
-            <ReqExctnDt>${formatLBDate(executionDate)}</ReqExctnDt>
+            <ReqExctnDt>${formatLBDate(group.executionDate)}</ReqExctnDt>
             <Dbtr>
                 <Nm>${escapeXml(companyName)}</Nm>
             </Dbtr>
@@ -414,14 +440,14 @@ function createPain001(
                 <FinInstnId>
                     <BIC>ELLFSESS</BIC>
                 </FinInstnId>
-            </DbtrAgt>
-    `;
-        payments.forEach((payment,index)=>{
+            </DbtrAgt>`;
+
+        group.payments.forEach(payment => {
 
             xml += `
             <CdtTrfTxInf>
                 <PmtId>
-                    <EndToEndId>E2E-${index+1}</EndToEndId>
+                    <EndToEndId>E2E-${transactionIndex++}</EndToEndId>
                 </PmtId>
                 <Amt>
                     <InstdAmt Ccy="SEK">${payment.amount.toFixed(2)}</InstdAmt>
@@ -434,11 +460,24 @@ function createPain001(
                         <Othr>
                             <Id>${escapeXml(payment.account)}</Id>
                             <SchemeNm>
-                                <Prtry>BBAN</Prtry>
+                                ${payment.isBgNumber
+                            ? `<Prtry>BGNR</Prtry>`
+                            : `<Cd>BBAN</Cd>`}
                             </SchemeNm>
                         </Othr>
                     </Id>
                 </CdtrAcct>
+                ${payment.isBgNumber ? `
+                <CdtrAgt>
+                    <FinInstnId>
+                        <ClrSysMmbId>
+                            <ClrSysId>
+                                <Cd>SESBA</Cd>
+                            </ClrSysId>
+                            <MmbId>9900</MmbId>
+                        </ClrSysMmbId>
+                    </FinInstnId>
+                </CdtrAgt>` : ""}
                 <RmtInf>
                     <Ustrd>${escapeXml(payment.reference)}</Ustrd>
                 </RmtInf>
@@ -446,7 +485,10 @@ function createPain001(
         });
 
         xml += `
-        </PmtInf>
+        </PmtInf>`;
+    });
+
+    xml += `
     </CstmrCdtTrfInitn>
 </Document>
 `;
