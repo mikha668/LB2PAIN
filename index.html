@@ -107,13 +107,13 @@ textarea{
         <p class="subtitle">
             Ladda upp en LB-fil och generera en ISO20022 pain.001 XML enligt LF Bank MIG version 0
             <br>Inga kredditnotor och kontantutbetalningar är tillåtet.
-            <br>Löner skickas i en egen fil, blanda ej med andra betalningar.
+
         </p>
 
         <label>LB Fil</label>
         <input type="file" id="fileInput">
 
-        <label>Company Name</label>
+        <label>Företagsnamn</label>
         <input
             type="text"
             id="companyName"
@@ -184,12 +184,17 @@ function convertFile() {
                 .trim()
                 .replace(/-/g, "");
 
-        const payments =
+        const lbData =
             parseLB(lbContent);
+
+        if(lbData.error){
+            showStatus(lbData.error, true);
+            return;
+        }
 
         const xml =
             createPain001(
-                payments,
+                lbData,
                 companyName,
                 orgNo,
             );
@@ -207,7 +212,7 @@ function convertFile() {
         );
 
         showStatus(
-            `${payments.length} payment(s) converted`,
+            `${lbData.payments.length} payment(s) converted`,
             false
         );
     };
@@ -238,6 +243,11 @@ function parseLB(content){
 
         const recordType = line.substring(0,2);
 
+        if(recordType === "15" || recordType === "16" || recordType === "17"){
+            result.error = "kreditnotor ej tillåtna i filen";
+            return;
+        }
+
         //
         // POST 11
         //
@@ -258,7 +268,6 @@ function parseLB(content){
         if(recordType === "40"){
 
             result.record40 = {
-                utbetNo: line.substring(6,12).trim(),
                 clnr: line.substring(12,16).trim(),
                 accountNo: line.substring(16,28).trim().replace(/^0+/, ""),
                 reference: line.substring(28,40).trim(),
@@ -277,13 +286,12 @@ function parseLB(content){
             const ocrOrRef = line.substring(12,37).trim();
             const amount = line.substring(37,49).trim();
             const betDate = line.substring(49,55).trim();
-
+// change logic for date
             if(!result.header.payDate && recordType === "14"){
                 result.header.payDate = betDate;
             }
 
-            const record40 = result.record40 &&
-                result.record40.utbetNo === bgOrBet
+            const record40 = recordType === "14"
                 ? result.record40
                 : null;
 
@@ -303,7 +311,9 @@ function parseLB(content){
                     ? record40.clnr + record40.accountNo
                     : bgOrBet,
 
-                reference: record40 ? record40.reference : ocrOrRef,
+                reference: record40 && record40.reference
+                    ? record40.reference
+                    : ocrOrRef,
 
                 clnr: record40 ? record40.clnr : "",
 
@@ -311,7 +321,9 @@ function parseLB(content){
 
             });
 
-            result.record40 = null;
+            if(recordType === "14"){
+                result.record40 = null;
+            }
 
             return;
         }
@@ -372,6 +384,7 @@ function createPain001(
                                 <Id>${escapeXml(OrgNo)}</Id>
                             </Othr>
                         </OrgId>
+                    </Id>
             </InitgPty>
         </GrpHdr>
         <PmtInf>
