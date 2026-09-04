@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>LB → pain.001 V0.91</title>
+<title>LB → pain.001 V0.92</title>
 
 <style>
 
@@ -267,8 +267,12 @@ function parseLB(content){
 
         if(recordType === "40"){
 
+            const clnr = line.substring(12,16).trim();
+
             result.record40 = {
-                clnr: line.substring(12,16).trim(),
+                clnr: clnr.startsWith("8")
+                    ? clnr + calculate10ModulusCheckDigit(clnr)
+                    : clnr,
                 accountNo: line.substring(16,28).trim().replace(/^0+/, ""),
                 reference: line.substring(28,40).trim(),
                 salary: line.substring(40).trim()
@@ -331,6 +335,23 @@ function parseLB(content){
     console.log(result);
 
     return result;
+}
+
+
+function calculate10ModulusCheckDigit(value){
+
+    let sum = 0;
+    let multiplier = 2;
+
+    for(let index = value.length - 1; index >= 0; index--){
+
+        const product = Number(value[index]) * multiplier;
+
+        sum += Math.floor(product / 10) + product % 10;
+        multiplier = multiplier === 2 ? 1 : 2;
+    }
+
+    return String((10 - sum % 10) % 10);
 }
 
 
