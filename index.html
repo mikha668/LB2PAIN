@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>LB → pain.001 V0.96</title>
+<title>LB → pain.001 V0.98</title>
 
 <style>
 
@@ -408,6 +408,93 @@ function formatAmountValue(amount){
 }
 
 
+function formatPaymentUstrd(payment){
+
+    return payment.reference.substring(0,140);
+}
+
+
+function isModulus10Reference(value){
+
+    if(!/^\d+$/.test(value) || value.length < 2){
+        return false;
+    }
+
+    const reference = value.substring(0, value.length - 1);
+    const checkDigit = value.substring(value.length - 1);
+
+    return calculate10ModulusCheckDigit(reference) === checkDigit;
+}
+
+
+function getStructuredReference(payment){
+
+    if(!payment.ocrOrRef){
+        return null;
+    }
+
+    return {
+        type: isModulus10Reference(payment.ocrOrRef)
+            ? "SCOR"
+            : "CINV",
+        reference: payment.ocrOrRef
+    };
+}
+
+
+function normalizePaymentIdentifier(value){
+
+    return String(value || "")
+        .trim()
+        .replace(/^0+/, "");
+}
+
+
+function formatPaymentRemittance(payment){
+
+    if(payment.isRecord40Payment){
+        return `<Ustrd>${escapeXml(formatPaymentUstrd(payment))} </Ustrd>`;
+    }
+
+    const structuredReference = getStructuredReference(payment);
+    const addtlRmtInf = payment.informationPosts
+        .slice(0, structuredReference ? 2 : 3)
+        .map(information =>
+            `<AddtlRmtInf>${escapeXml(information)}</AddtlRmtInf>`
+        )
+        .join("\n                    ");
+
+    if(!structuredReference && payment.informationPosts.length === 0){
+        return "";
+    }
+
+    const strd = `<Strd>
+                    ${structuredReference
+                        ? structuredReference.type === "SCOR"
+                            ? `<CdtrRefInf>
+                        <Tp>
+                            <CdOrPrtry>
+                                <Cd>${structuredReference.type}</Cd>
+                            </CdOrPrtry>
+                        </Tp>
+                        <Ref>${escapeXml(structuredReference.reference)}</Ref>
+                    </CdtrRefInf>`
+                            : `<RfrdDocInf>
+                        <Tp>
+                            <CdOrPrtry>
+                                <Cd>CINV</Cd>
+                            </CdOrPrtry>
+                        </Tp>
+                        <Nb>${escapeXml(structuredReference.reference)}</Nb>
+                    </RfrdDocInf>`
+                        : ""}
+                    ${addtlRmtInf}
+                    </Strd>`;
+
+    return strd;
+}
+
+
 function parseLB(content){
 
     const lines = content.split(/\r?\n/);
@@ -500,13 +587,16 @@ function parseLB(content){
             const paymentIdentifier = line.substring(2,12).trim();
             const information = line.substring(12,62).trim();
             const payment = result.payments.find(item =>
-                item.paymentNumber === paymentIdentifier ||
-                item.bgOrBet === paymentIdentifier
-            );
+                normalizePaymentIdentifier(item.paymentNumber) ===
+                    normalizePaymentIdentifier(paymentIdentifier) ||
+                normalizePaymentIdentifier(item.bgOrBet) ===
+                    normalizePaymentIdentifier(paymentIdentifier)
+            ) || [...result.payments]
+                .reverse()
+                .find(item => !item.isRecord40Payment);
 
-            if(payment && information && payment.reference.length < 140){
-                payment.reference = `${payment.reference} ${information}`
-                    .substring(0,140);
+            if(payment && information && !payment.isRecord40Payment){
+                payment.informationPosts.push(information);
             }
 
             return;
@@ -546,9 +636,13 @@ function parseLB(content){
 
                 isBgNumber: !record40,
 
-                reference: record40 && record40.reference
+                isRecord40Payment: Boolean(record40),
+
+                reference: record40
                     ? record40.reference
                     : ocrOrRef,
+
+                informationPosts: [],
 
                 clnr: record40 ? record40.clnr : "",
 
@@ -737,7 +831,7 @@ function createPain001(
                     </Id>
                 </CdtrAcct>
                 <RmtInf>
-                    <Ustrd>${escapeXml(payment.reference)}</Ustrd>
+                    ${formatPaymentRemittance(payment)}
                 </RmtInf>
             </CdtTrfTxInf>`;
         });
