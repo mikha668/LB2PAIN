@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>LB → pain.001 V0.95</title>
+<title>LB → pain.001 V0.96</title>
 
 <style>
 
@@ -33,13 +33,21 @@ body{
     box-shadow:0 5px 20px rgba(0,0,0,.1);
 }
 
+.page-header{
+    margin:-30px -30px 30px;
+    padding:20px;
+    border-radius:12px 12px 0 0;
+    background:#12345b;
+    color:white;
+}
+
 h1{
-    margin-bottom:10px;
+    margin-bottom:5px;
 }
 
 .subtitle{
-    margin-bottom:30px;
-    color:#666;
+    margin-bottom:5px;
+    color:#dbe7f5;
 }
 
 label{
@@ -140,14 +148,15 @@ textarea{
 
     <div class="card">
 
-        <h1>LB → pain.001 </h1>
+        <div class="page-header">
+            <h1>Konvertering av LB → pain.001 LF Bank (ver 0)</h1>
 
-        <p class="subtitle">
-            Ladda upp en LB-fil och generera en ISO20022 pain.001 XML enligt LF Bank MIG version 0
-            <br>Kredditnotor och kontantutbetalningar är ej tillåtet. Kontoinsättningar med avisering är inte möjligt inom ISO <br>
-    
-
-        </p>
+            <p class="subtitle">
+                Ladda upp en LB-fil och generera en ISO20022 pain.001 XML enligt LF Bank MIG version 0
+                <br>Kredditnotor och kontantutbetalningar är ej tillåtet. Kontoinsättningar med avisering är inte möjligt inom ISO.
+                <br>Observera att eventuella informationsposter i LB inkluderas till max 140 tkn, resten kommer ej med.
+            </p>
+        </div>
 
         <label>LB Fil</label>
         <input type="file" id="fileInput">
@@ -188,7 +197,7 @@ textarea{
 </div>
 
 <script>
-
+// Derkert 2026
 document
 .getElementById("convertBtn")
 .addEventListener("click", convertFile);
@@ -714,7 +723,11 @@ function createPain001(
                 <CdtrAcct>
                     <Id>
                         <Othr>
-                            <Id>${escapeXml(payment.account)}</Id>
+                            <Id>${escapeXml(
+                                payment.isBgNumber
+                                    ? payment.account.replace(/^0+/, "")
+                                    : payment.account
+                            )}</Id>
                             <SchmeNm>
                                 ${payment.isBgNumber
                             ? `<Prtry>BGNR</Prtry>`
