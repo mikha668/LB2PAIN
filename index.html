@@ -90,6 +90,44 @@ textarea{
     color:green;
 }
 
+.payment-summary{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px 24px;
+    margin-top:20px;
+    padding:18px;
+    border:1px solid #d9e2ec;
+    border-radius:8px;
+    background:#f8fafc;
+}
+
+.summary-row{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    padding:8px 0;
+    border-bottom:1px solid #e5e7eb;
+}
+
+.summary-row:last-child,
+.summary-row:nth-last-child(2){
+    border-bottom:0;
+}
+
+.summary-label{
+    font-weight:600;
+}
+
+.summary-value{
+    text-align:right;
+    white-space:nowrap;
+}
+
+.summary-mismatch{
+    color:red;
+    font-weight:bold;
+}
+
 .error{
     color:red;
 }
@@ -106,7 +144,8 @@ textarea{
 
         <p class="subtitle">
             Ladda upp en LB-fil och generera en ISO20022 pain.001 XML enligt LF Bank MIG version 0
-            <br>Inga kredditnotor och kontantutbetalningar är tillåtet.
+            <br>Kredditnotor och kontantutbetalningar är ej tillåtet. Kontoinsättningar med avisering är inte möjligt inom ISO <br>
+    
 
         </p>
 
@@ -130,6 +169,8 @@ textarea{
         </button>
 
         <div id="status" class="status"></div>
+
+        <div id="paymentSummary" class="payment-summary" hidden></div>
 
         
         <textarea
@@ -192,6 +233,24 @@ function convertFile() {
             return;
         }
 
+        document
+            .getElementById("xmlPreview")
+            .value = "";
+
+        const totalsCheck =
+            validatePaymentTotals(lbData.payments, lbData.footer);
+
+        showPaymentSummary(
+            lbData.payments,
+            lbData.footer,
+            totalsCheck
+        );
+
+        if(!totalsCheck.valid){
+            showStatus(totalsCheck.message, true);
+            return;
+        }
+
         const xml =
             createPain001(
                 lbData,
@@ -212,12 +271,131 @@ function convertFile() {
         );
 
         showStatus(
-            `${lbData.payments.length} payment(s) converted`,
+            "Konverteringen är klar",
             false
         );
+
     };
 
     reader.readAsText(file);
+}
+
+
+function showPaymentSummary(payments, footer, totalsCheck){
+
+    const summary = document.getElementById("paymentSummary");
+
+    const categories = {
+        giro: payments.filter(payment =>
+            payment.isBgNumber && payment.salary !== "L"
+        ),
+        transfer: payments.filter(payment =>
+            !payment.isBgNumber && payment.salary !== "L"
+        ),
+        salary: payments.filter(payment =>
+            payment.salary === "L"
+        )
+    };
+
+    const rows = [
+        ["Antal gireringar", "Belopp gireringar", categories.giro],
+        ["Antal överföringar", "Belopp överföringar", categories.transfer],
+        ["Antal lönebetalningar", "Belopp lönebetalningar", categories.salary],
+        ["Totalt antal betalningar", "Totalt belopp", payments]
+    ];
+
+    summary.innerHTML = rows.map(([countLabel, amountLabel, items], index) => `
+        <div class="summary-row">
+            <span class="summary-label">${countLabel}</span>
+            <span class="summary-value ${index === 3 && totalsCheck && !totalsCheck.countMatches ? "summary-mismatch" : ""}">${items.length}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">${amountLabel}</span>
+            <span class="summary-value ${index === 3 && totalsCheck && !totalsCheck.amountMatches ? "summary-mismatch" : ""}">${formatAmount(items)}</span>
+        </div>
+    `).join("");
+
+    summary.innerHTML += `
+        <div class="summary-row">
+            <span class="summary-label">Antal bet från LB</span>
+            <span class="summary-value ${totalsCheck && !totalsCheck.countMatches ? "summary-mismatch" : ""}">${footer ? footer.paymentCount : "-"}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Totalt belopp från LB</span>
+            <span class="summary-value ${totalsCheck && !totalsCheck.amountMatches ? "summary-mismatch" : ""}">${footer ? formatAmountValue(footer.totalAmount) : "-"}</span>
+        </div>
+    `;
+
+    summary.hidden = false;
+}
+
+
+function validatePaymentTotals(payments, footer){
+
+    if(!footer){
+        return {
+            valid: false,
+            countMatches: false,
+            amountMatches: false,
+            message: "Fel: slutpost TK29 saknas i LB-filen. Ingen XML skapades."
+        };
+    }
+
+    const paymentCount = payments.length;
+    const paymentAmount = payments.reduce(
+        (total, payment) => total + payment.amount,
+        0
+    );
+    const countMatches = paymentCount === footer.paymentCount;
+    const amountMatches =
+        Math.round(paymentAmount * 100) ===
+        Math.round(footer.totalAmount * 100);
+
+    if(countMatches && amountMatches){
+        return {
+            valid: true,
+            countMatches,
+            amountMatches,
+            message: ""
+        };
+    }
+
+    const errors = [];
+
+    if(!countMatches){
+        errors.push(`antal betalningar (${paymentCount} mot ${footer.paymentCount})`);
+    }
+
+    if(!amountMatches){
+        errors.push(`belopp (${formatAmountValue(paymentAmount)} mot ${formatAmountValue(footer.totalAmount)})`);
+    }
+
+    return {
+        valid: false,
+        countMatches,
+        amountMatches,
+        message: `Fel i LB-kontroll: ${errors.join(" och ")}. Ingen XML skapades.`
+    };
+}
+
+
+function formatAmount(payments){
+
+    const amount = payments.reduce(
+        (total, payment) => total + payment.amount,
+        0
+    );
+
+    return formatAmountValue(amount);
+}
+
+
+function formatAmountValue(amount){
+
+    return amount.toLocaleString("sv-SE", {
+        style: "currency",
+        currency: "SEK"
+    });
 }
 
 
@@ -230,6 +408,8 @@ function parseLB(content){
         header: {},
 
         payments: [],
+
+        footer: null,
 
         record40: null
 
@@ -281,6 +461,31 @@ function parseLB(content){
             return;
         }
 
+        if(recordType === "29"){
+
+            result.footer = {
+                bgNo: line.substring(2,12).trim(),
+                paymentCount: Number(line.substring(12,20).trim()),
+                totalAmount: Number(line.substring(20,32).trim()) / 100
+            };
+
+            return;
+        }
+
+        if(recordType === "26"){
+
+            const paymentNumber = line.substring(6,12).trim();
+            const payment = result.payments.find(item =>
+                item.paymentNumber === paymentNumber
+            );
+
+            if(payment){
+                payment.name = line.substring(12,47).trim();
+            }
+
+            return;
+        }
+
         //
         // POST 14/54 contain supplier payments.
         //
@@ -296,6 +501,8 @@ function parseLB(content){
                 : null;
 
             result.payments.push({
+
+                paymentNumber: line.substring(6,12).trim(),
 
                 bgOrBet,
 
