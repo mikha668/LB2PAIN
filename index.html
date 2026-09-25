@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>LB → pain.001 V0.98</title>
+<title>LB → pain.001 V0.981</title>
 
 <style>
 
@@ -140,6 +140,22 @@ textarea{
     color:red;
 }
 
+.preview-toggle{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:20px;
+    font-weight:600;
+}
+
+.preview-toggle input{
+    width:auto;
+}
+
+.preview-panels[hidden]{
+    display:none;
+}
+
 </style>
 </head>
 <body>
@@ -158,7 +174,7 @@ textarea{
             </p>
         </div>
 
-        <label>LB Fil</label>
+        <label>Välj LB-Fil</label>
         <input type="file" id="fileInput">
 
         <label>Företagsnamn</label>
@@ -181,16 +197,22 @@ textarea{
 
         <div id="paymentSummary" class="payment-summary" hidden></div>
 
-        
-        <textarea
-            id="LBOut"
-            placeholder="LB file content..."
-        ></textarea>
+        <label class="preview-toggle">
+            <input type="checkbox" id="previewToggle">
+            Visa LB file content och XML preview
+        </label>
 
-        <textarea
-            id="xmlPreview"
-            placeholder="XML preview..."
-        ></textarea>
+        <div id="previewPanels" class="preview-panels" hidden>
+            <textarea
+                id="LBOut"
+                placeholder="LB file content..."
+            ></textarea>
+
+            <textarea
+                id="xmlPreview"
+                placeholder="XML preview..."
+            ></textarea>
+        </div>
 
     </div>
 
@@ -201,6 +223,14 @@ textarea{
 document
 .getElementById("convertBtn")
 .addEventListener("click", convertFile);
+
+document
+    .getElementById("previewToggle")
+    .addEventListener("change", event => {
+        document
+            .getElementById("previewPanels")
+            .hidden = !event.target.checked;
+    });
 
 
 function convertFile() {
@@ -326,11 +356,11 @@ function showPaymentSummary(payments, footer, totalsCheck){
 
     summary.innerHTML += `
         <div class="summary-row">
-            <span class="summary-label">Antal bet från LB</span>
+            <span class="summary-label">Antal bet från LB-fil</span>
             <span class="summary-value ${totalsCheck && !totalsCheck.countMatches ? "summary-mismatch" : ""}">${footer ? footer.paymentCount : "-"}</span>
         </div>
         <div class="summary-row">
-            <span class="summary-label">Totalt belopp från LB</span>
+            <span class="summary-label">Totalt belopp från LB-fil</span>
             <span class="summary-value ${totalsCheck && !totalsCheck.amountMatches ? "summary-mismatch" : ""}">${footer ? formatAmountValue(footer.totalAmount) : "-"}</span>
         </div>
     `;
