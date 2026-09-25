@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>LB → pain.001 V0.982</title>
+<title>LB → pain.001 V0.985</title>
 
 <style>
 
@@ -729,7 +729,9 @@ function parseLB(content){
                     ? record40.clnr + record40.accountNo
                     : bgOrBet,
 
-                isBgNumber: !record40,
+                isBgNumber: !record40 && recordType === "14",
+
+                isPgPayment: recordType === "54",
 
                 isRecord40Payment: Boolean(record40),
 
@@ -895,14 +897,14 @@ function createPain001(
                 <Amt>
                     <InstdAmt Ccy="SEK">${payment.amount.toFixed(2)}</InstdAmt>
                 </Amt>
-                ${payment.isBgNumber ? `
+                ${(payment.isBgNumber || payment.isPgPayment) ? `
                 <CdtrAgt>
                     <FinInstnId>
                         <ClrSysMmbId>
                             <ClrSysId>
                                 <Cd>SESBA</Cd>
                             </ClrSysId>
-                            <MmbId>9900</MmbId>
+                            <MmbId>${payment.isPgPayment ? "9960" : "9900"}</MmbId>
                         </ClrSysMmbId>
                     </FinInstnId>
                 </CdtrAgt>` : ""}
