@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>LB → pain.001 V0.985</title>
+<title>LB → pain.001 V0.986</title>
 
 <style>
 
@@ -391,10 +391,13 @@ function showPaymentSummary(payments, footer, totalsCheck){
 
     const categories = {
         giro: payments.filter(payment =>
-            payment.isBgNumber && payment.salary !== "L"
+            (payment.isBgNumber || payment.isPgPayment) &&
+            payment.salary !== "L"
         ),
         transfer: payments.filter(payment =>
-            !payment.isBgNumber && payment.salary !== "L"
+            !payment.isBgNumber &&
+            !payment.isPgPayment &&
+            payment.salary !== "L"
         ),
         salary: payments.filter(payment =>
             payment.salary === "L"
