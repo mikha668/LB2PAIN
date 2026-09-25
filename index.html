@@ -199,7 +199,7 @@ textarea{
 
         <label class="preview-toggle">
             <input type="checkbox" id="previewToggle">
-            Visa LB file content och XML preview
+            Visa LB fil och genererad XML
         </label>
 
         <div id="previewPanels" class="preview-panels" hidden>
@@ -220,6 +220,9 @@ textarea{
 
 <script>
 // Derkert 2026
+const USE_LOCAL_STORAGE = true;
+const CUSTOMER_STORAGE_KEY = "lb2pain-customer-details";
+
 document
 .getElementById("convertBtn")
 .addEventListener("click", convertFile);
@@ -231,6 +234,68 @@ document
             .getElementById("previewPanels")
             .hidden = !event.target.checked;
     });
+
+loadCustomerDetails();
+
+document
+    .getElementById("companyName")
+    .addEventListener("input", saveCustomerDetails);
+
+document
+    .getElementById("orgNo")
+    .addEventListener("input", saveCustomerDetails);
+
+
+function loadCustomerDetails(){
+
+    if(!USE_LOCAL_STORAGE){
+        return;
+    }
+
+    try{
+        const savedDetails = JSON.parse(
+            localStorage.getItem(CUSTOMER_STORAGE_KEY)
+        );
+
+        if(!savedDetails){
+            return;
+        }
+
+        if(typeof savedDetails.companyName === "string"){
+            document.getElementById("companyName").value =
+                savedDetails.companyName;
+        }
+
+        if(typeof savedDetails.orgNo === "string"){
+            document.getElementById("orgNo").value =
+                savedDetails.orgNo;
+        }
+    }
+    catch(error){
+        // Local storage can be unavailable in restricted browser contexts.
+    }
+}
+
+
+function saveCustomerDetails(){
+
+    if(!USE_LOCAL_STORAGE){
+        return;
+    }
+
+    try{
+        localStorage.setItem(
+            CUSTOMER_STORAGE_KEY,
+            JSON.stringify({
+                companyName: document.getElementById("companyName").value,
+                orgNo: document.getElementById("orgNo").value
+            })
+        );
+    }
+    catch(error){
+        // Local storage can be unavailable in restricted browser contexts.
+    }
+}
 
 
 function convertFile() {
