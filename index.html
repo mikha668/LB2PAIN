@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>LB → pain.001 V0.986</title>
+<title>LB → pain.001 V0.987</title>
 
 <style>
 
@@ -680,20 +680,28 @@ function parseLB(content){
             return;
         }
 
-        if(recordType === "25"){
+        if(recordType === "25" || recordType === "65"){
 
             const paymentIdentifier = line.substring(2,12).trim();
             const information = line.substring(12,62).trim();
+            const isPgInformation = recordType === "65";
             const payment = result.payments.find(item =>
+                item.isPgPayment === isPgInformation &&
                 normalizePaymentIdentifier(item.paymentNumber) ===
                     normalizePaymentIdentifier(paymentIdentifier) ||
+                item.isPgPayment === isPgInformation &&
                 normalizePaymentIdentifier(item.bgOrBet) ===
                     normalizePaymentIdentifier(paymentIdentifier)
             ) || [...result.payments]
                 .reverse()
-                .find(item => !item.isRecord40Payment);
+                .find(item =>
+                    !item.isRecord40Payment &&
+                    item.isPgPayment === isPgInformation
+                );
 
-            if(payment && information && !payment.isRecord40Payment){
+            if(payment && information &&
+                !payment.isRecord40Payment &&
+                payment.isPgPayment === isPgInformation){
                 payment.informationPosts.push(information);
             }
 

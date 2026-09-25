@@ -9,18 +9,24 @@
 2500XXXXXX15TEST AV TEXT rad 1         mer och mer och mer ocher mer
 2500XXXXXX15TEST AV TEXT rad 2         mer och mer och mer ocher mer
 2500XXXXXX15TEST AV TEXT rad 3         mer och mer och mer ocher mer                   
+2500XXXXXX15TEST AV TEXT rad 4         mer och mer och mer ocher mer                   
 1400XXXXXX2018404079                 000000021000060404     VERIF 20                  
-5400XXXXXX1549243777                 000000528000060404     VERIF 22                  
+5400XXXXXX3549243777                 000000528000060404     VERIF 22                  
+6500XXXXXX35TEST AV TEXT rad 1    pg     mer 
+6500XXXXXX35TEST AV TEXT rad 2    pg     mer 
+6500XXXXXX35TEST AV TEXT rad 3    pg     mer
+6500XXXXXX35TEST AV TEXT rad 4    pg     slut
 1400XXXXXX81                         000000063000060407     VERIF 23
 2500XXXXXX81TEST AV TEXT rad 1         mer och mer och mer ocher mer
 2500XXXXXX81TEST AV TEXT rad 2         mer och mer och mer ocher mer
+2500XXXXXX81TEST AV TEXT rad 3         mer och mer och mer ocher mer
 2500XXXXXX81TEST AV TEXT rad 3         mer och mer och mer ocher mer
 1400XXXXXXXX49342306                 000000003000060407     VERIF 24
 400000990010XXXX00XXXXXXXXXXRESEERS                                                    
 14000099001015204076                 000000230000060330     VERIF 25                   
 400000990028XXXX000000XXXXXX                                                    
 14000099002849060593                 000000140000060330     VERIF 26                   
-40000099003 XXXX0000000XXXXX                                                    
+40000099003 XXXX0000000XXXXX            L                                       
 14000099003 48774616                 000000800000060330     VERIF 27                   
 26000099004 HANDELSBOLAGET HB                                                      
 27000099004 TORSGATAN 84                       11225STOCKHOLM                    
