@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>LB → pain.001 V0.987</title>
+<title>LB → pain.001 V0.988</title>
 
 <style>
 
@@ -878,7 +878,7 @@ function createPain001(
                     <Cd>SALA</Cd>
                 </CtgyPurp>
             </PmtTpInf>` : ""}
-            <ReqdExctnDt>${formatLBDate(group.executionDate)}</ReqdExctnDt>
+            <ReqdExctnDt>${formatLBExecutionDate(group.executionDate)}</ReqdExctnDt>
             <Dbtr>
                 <Nm>${escapeXml(companyName)}</Nm>
             </Dbtr>
@@ -964,6 +964,21 @@ function formatLBDate(value){
     return "20" + date.substring(0,2) + "-" +
         date.substring(2,4) + "-" +
         date.substring(4,6);
+}
+
+
+function formatLBExecutionDate(value){
+
+    const date = value.trim();
+
+    if(date.toUpperCase() === "GENAST"){
+        const today = new Date();
+        const twoDigits = part => String(part).padStart(2,"0");
+
+        return `${today.getFullYear()}-${twoDigits(today.getMonth() + 1)}-${twoDigits(today.getDate())}`;
+    }
+
+    return formatLBDate(date);
 }
 
 
