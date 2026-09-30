@@ -618,7 +618,7 @@ function parseLB(content){
         const recordType = line.substring(0,2);
 
         if(recordType === "15" || recordType === "16" || recordType === "17"){
-            result.error = "kreditnotor ej tillåtna i filen";
+            result.error = "kreditnotor eller avdrag ej tillåtna i filen";
             return;
         }
 
@@ -926,7 +926,7 @@ function createPain001(
                     <Id>
                         <Othr>
                             <Id>${escapeXml(
-                                payment.isBgNumber
+                                payment.isBgNumber || payment.isPgPayment
                                     ? payment.account.replace(/^0+/, "")
                                     : payment.account
                             )}</Id>
